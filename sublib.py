@@ -234,6 +234,9 @@ class Event(UserDict):
         self['timing'] *= coef
         return self
 
+    def __len__(self):
+        return len(self['timing'])
+
     def __le__(self, other: 'Event') -> bool:
         return self['timing'] <= other['timing']
 
@@ -394,8 +397,8 @@ class Subs(UserList):
     def parse_srt(cls, file_path: str) -> 'Subs':
         with open(file_path, 'rb') as srt_file:
             srt_txt = srt_file.read().decode()
-        ans = cls()
-        current_text, current_timing = '', None
+        events = []
+        current_text = ''
         for line in reversed(srt_txt.split('\n')):
             line = preprocess(line)
             if line == '' or line.isdigit():
@@ -404,10 +407,12 @@ class Subs(UserList):
             if match is None:
                 current_text = line + '\n' + current_text
             else:
-                if current_timing is not None:
-                    ans.append(Event(timing=current_timing, text=current_text.strip().replace('\n', '\\N')))
-                current_text = ''
                 current_timing = Timing(match.group(1), match.group(2), 'srt')
+                events.append(Event(timing=current_timing, text=current_text.strip().replace('\n', '\\N')))
+                current_text = ''
+        ans = cls()
+        for event in reversed(events):
+            ans.append(event)
         return ans
 
     def remove_actors(self) -> None:
