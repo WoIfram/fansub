@@ -244,7 +244,7 @@ class Event(UserDict):
         return self['timing'] < other['timing']
 
     def __str__(self):
-        return self.TEMPLATE.format(d=self)
+        return self.TEMPLATE.format(d=self).replace('\n', '\\N')
 
     @classmethod
     def from_ass(cls, dialogue_line: str) -> 'Event':
@@ -382,13 +382,14 @@ class Subs(UserList):
                 if current_section == 'Script Info':
                     tmp = line.split(':', 1)
                     var, value = tmp
+                    value = value.lstrip()
                     ans.script_info[var] = value
                 elif 'Format:' in line:
                     continue
                 elif current_section == 'V4+ Styles':
                     ans.add_style(line)
                 elif current_section == 'Events':
-                    ans.add_event(line)
+                    ans.add_event(line.replace('\\N', '\n'))
             else:
                 current_section = match.group(1)
         return ans
@@ -408,7 +409,7 @@ class Subs(UserList):
                 current_text = line + '\n' + current_text
             else:
                 current_timing = Timing(match.group(1), match.group(2), 'srt')
-                events.append(Event(timing=current_timing, text=current_text.strip().replace('\n', '\\N')))
+                events.append(Event(timing=current_timing, text=current_text.strip()))
                 current_text = ''
         ans = cls()
         for event in reversed(events):
@@ -433,7 +434,7 @@ class Subs(UserList):
     def language_processing(self, lang: str) -> None:
         for event in self:
             if lang == 'rus':
-                event['text'] = event['text'].replace('…?', '?..').replace('…!', '!..')
+                event['text'] = event['text'].replace('…?', '?..').replace('…!', '!..').replace('c', 'с')
             elif lang == 'eng':
                 event['text'] = event['text'].replace('?..', '…?').replace('!..', '…!')
             else:
@@ -452,7 +453,7 @@ class Subs(UserList):
             style['size'] = size
 
     def join_info(self) -> str:
-        return "\n".join(x+':'+str(y) for x, y in sorted(self.script_info.items())) + '\n'
+        return "\n".join(x+': '+str(y) for x, y in sorted(self.script_info.items())) + '\n'
 
     def join_styles(self) -> str:
         output_styles = [str(self.styles[i]) for i in self.styles]
@@ -477,7 +478,7 @@ class Subs(UserList):
         for event in self:
             timing = event['timing']
             str_timing = " --> ".join(ts.srt for ts in (timing.begin, timing.end))
-            text += str_timing + '\n' + event['text'].replace('\\N', '\n') + '\n\n'
+            text += str_timing + '\n' + event['text'] + '\n\n'
         with open(file_path, "wb") as f:
             f.write(text.strip().replace('\n', '\r\n').encode())
 
