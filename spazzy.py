@@ -1,11 +1,16 @@
 #!/usr/bin/python3
 
 import argparse
-import sublib
 import re
+from collections import defaultdict
+
+# https://pypi.python.org/pypi/pyahocorasick
+import ahocorasick
+
+import sublib
 
 
-VERSION = '0.0.1'
+VERSION = '0.1.0'
 
 start_of_sentence = True
 good_symbols = frozenset(list(chr(i) for i in range(ord('a'), ord('z') + 1)) +
@@ -16,8 +21,17 @@ effects = re.compile(r'<.*?>', re.DOTALL)
 brackets = re.compile(r'\[.*?\]', re.DOTALL)
 sentence_border = re.compile(r'([?!.♪]|…$)')
 word_regex = re.compile(r'(\w+)')
+automaton = ahocorasick.Automaton()
 with open('names.txt') as names:
-    dict_of_names = dict((name.strip().lower(), name.strip()) for name in names.readlines())
+    dict_of_names = defaultdict(list)
+    for name in names.readlines():
+        sensitive = name.strip()
+        insensitive = sensitive.lower()
+        automaton.add_word(insensitive, insensitive)
+        for i, symb in enumerate(sensitive):
+            if symb.isupper():
+                dict_of_names[insensitive].append(i)
+    automaton.make_automaton()
 
 
 def capitalize(word):
@@ -39,21 +53,17 @@ def process_plain_text(text: str):
     text = ''.join(letter for letter in text if letter in good_symbols)
     text = text.replace('...', '…').replace('\n', ' ').replace('--', ' — ')
     text = text.lower()
-    new_text = ''
-    prev_word = ''
-    for element in word_regex.split(text):
-        if element in dict_of_names:
-            prev_word = dict_of_names[element]
-            new_text += prev_word
-        elif prev_word.lower() + ' ' + element in dict_of_names:
-            full_name = dict_of_names[prev_word.lower() + ' ' + element]
-            new_text = new_text[:new_text.rfind(prev_word)] + full_name
-            prev_word = full_name.split()[-1]
-        else:
-            new_text += element
-            if word_regex.match(element):
-                prev_word = element
-    text = new_text
+
+    cap_needed = set()
+    for ending, name in automaton.iter(text):
+        begin = ending - len(name) + 1
+        left_word_border = (begin == 0) or not text[begin - 1].isalpha()
+        right_word_border = (ending == len(text) - 1) or not text[ending + 1].isalpha()
+        if left_word_border and right_word_border:
+            for index in dict_of_names[name]:
+                cap_needed.add(begin + index)
+    text = ''.join((symb.upper() if i in cap_needed else symb) for i, symb in enumerate(text))
+
     new_text = ''
     for element in sentence_border.split(text):
         if sentence_border.match(element):
