@@ -304,6 +304,7 @@ class Subs(UserList):
     SECTION_RE = re.compile(r'\[(.*)\]$')
     SRT_TIMING_RE = re.compile(r'(\d+:\d+:\d+,\d+)[ >-]+(\d+:\d+:\d+,\d+)$')
     VTT_TIMING_RE = re.compile(r'(\d+:\d+:\d+\.\d+)[ >-]+(\d+:\d+:\d+\.\d+)')
+    TXT_POP_RE = re.compile(r'(\d+:\d+:\d+,\d+)\|(\d+:\d+:\d+,\d+)\|POP\|(.*)$')
 
     def __init__(self):
         UserList.__init__(self)
@@ -367,6 +368,8 @@ class Subs(UserList):
                 return cls.parse_srt(file_path)
             elif file_path[-4:] == '.vtt':
                 return cls.parse_vtt(file_path)
+            elif file_path[-4:] == '.txt':
+                return cls.parse_txt(file_path)
             else:
                 print("Unknown subtitle format: '{}'".format(file_path))
         else:
@@ -425,11 +428,11 @@ class Subs(UserList):
 
     @classmethod
     def parse_vtt(cls, file_path: str) -> 'Subs':
-        with open(file_path, 'rb') as srt_file:
-            srt_txt = srt_file.read().decode()
+        with open(file_path, 'rb') as vtt_file:
+            vtt_txt = vtt_file.read().decode()
         events = []
         current_text = ''
-        for line in reversed(srt_txt.split('\n')):
+        for line in reversed(vtt_txt.split('\n')):
             line = preprocess(line)
             if line == '' or line.isdigit():
                 continue
@@ -443,6 +446,23 @@ class Subs(UserList):
         ans = cls()
         for event in reversed(events):
             ans.append(event)
+        return ans
+
+    @classmethod
+    def parse_txt(cls, file_path: str) -> 'Subs':
+        with open(file_path, 'rb') as txt_file:
+            txt_txt = txt_file.read().decode()
+        ans = cls()
+        for line in txt_txt.split('\n'):
+            line = preprocess(line)
+            if line == '':
+                continue
+            match = cls.TXT_POP_RE.match(line)
+            if match is None:
+                print('Failed to parse line ' + repr(line))
+            else:
+                current_timing = Timing(match.group(1), match.group(2), 'srt')
+                ans.append(Event(timing=current_timing, text=match.group(3)))
         return ans
 
     def remove_actors(self) -> None:
