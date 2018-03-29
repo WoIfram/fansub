@@ -45,6 +45,10 @@ class Timestamp:
                 h, m, s = stamp.split(':')
                 s, ms = s.split(',')
                 self._value = int(h) * 360000 + int(m) * 6000 + int(s) * 100 + int(round(int(ms)/10))
+            elif stamp_type == 'vtt':
+                h, m, s = stamp.split(':')
+                s, ms = s.split('.')
+                self._value = int(h) * 360000 + int(m) * 6000 + int(s) * 100 + int(round(int(ms)/10))
             else:
                 raise TypeError("Unknown time stamp type: %s" % stamp_type)
         except ValueError:
@@ -299,6 +303,7 @@ class Subs(UserList):
     VERBOSE = True
     SECTION_RE = re.compile(r'\[(.*)\]$')
     SRT_TIMING_RE = re.compile(r'(\d+:\d+:\d+,\d+)[ >-]+(\d+:\d+:\d+,\d+)$')
+    VTT_TIMING_RE = re.compile(r'(\d+:\d+:\d+\.\d+)[ >-]+(\d+:\d+:\d+\.\d+)')
 
     def __init__(self):
         UserList.__init__(self)
@@ -360,6 +365,8 @@ class Subs(UserList):
                 return cls.parse_ass(file_path)
             elif file_path[-4:] == '.srt':
                 return cls.parse_srt(file_path)
+            elif file_path[-4:] == '.vtt':
+                return cls.parse_vtt(file_path)
             else:
                 print("Unknown subtitle format: '{}'".format(file_path))
         else:
@@ -416,6 +423,28 @@ class Subs(UserList):
             ans.append(event)
         return ans
 
+    @classmethod
+    def parse_vtt(cls, file_path: str) -> 'Subs':
+        with open(file_path, 'rb') as srt_file:
+            srt_txt = srt_file.read().decode()
+        events = []
+        current_text = ''
+        for line in reversed(srt_txt.split('\n')):
+            line = preprocess(line)
+            if line == '' or line.isdigit():
+                continue
+            match = cls.VTT_TIMING_RE.match(line)
+            if match is None:
+                current_text = line + '\n' + current_text
+            else:
+                current_timing = Timing(match.group(1), match.group(2), 'vtt')
+                events.append(Event(timing=current_timing, text=current_text.strip()))
+                current_text = ''
+        ans = cls()
+        for event in reversed(events):
+            ans.append(event)
+        return ans
+
     def remove_actors(self) -> None:
         for event in self:
             if 'actor' in event:
@@ -430,6 +459,7 @@ class Subs(UserList):
     def unify_symbols(self) -> None:
         for event in self:
             event['text'] = re.sub(r'\s+', ' ', event['text'].replace('...', '…').replace(' - ', ' — '))
+            event['text'] = re.sub(r'… ?', '… ', event['text']).strip()
 
     def language_processing(self, lang: str) -> None:
         for event in self:

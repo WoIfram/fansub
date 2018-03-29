@@ -3,6 +3,8 @@
 import argparse
 import re
 from collections import defaultdict
+from operator import itemgetter
+from itertools import groupby
 
 # https://pypi.python.org/pypi/pyahocorasick
 import ahocorasick
@@ -10,7 +12,7 @@ import ahocorasick
 import sublib
 
 
-VERSION = '0.1.0'
+VERSION = '0.2.0'
 
 start_of_sentence = True
 good_symbols = frozenset(list(chr(i) for i in range(ord('a'), ord('z') + 1)) +
@@ -26,6 +28,8 @@ with open('names.txt') as names:
     dict_of_names = defaultdict(list)
     for name in names.readlines():
         sensitive = name.strip()
+        if sensitive == '':
+            continue
         insensitive = sensitive.lower()
         automaton.add_word(insensitive, insensitive)
         for i, symb in enumerate(sensitive):
@@ -76,7 +80,16 @@ def process_plain_text(text: str):
                     start_of_sentence = False
             else:
                 new_text += element
-    return new_text.replace('♪', '').strip()
+    text = new_text.replace('♪', '').strip()
+    if len(text) == 0:
+        return ''
+    new_text = text[0]
+    for i in range(1, len(text)):
+        if text[i].isupper() and text[i-1].islower():
+            new_text += ' ' + text[i]
+        else:
+            new_text += text[i]
+    return new_text
 
 
 if __name__ == '__main__':
@@ -89,10 +102,12 @@ if __name__ == '__main__':
                                 'anon2anon, https://www.sunnysubs.com'.format(VERSION))
 
     args = parser.parse_args()
-    output_subs = sublib.Subs()
+    processed_subs = sublib.Subs()
     for event in args.subs:
         processed_text = process_plain_text(event['text'])
         if any(s.isalnum() for s in processed_text):
-            output_subs.append(sublib.Event(text=processed_text, timing=event['timing']))
-    output_subs.unify_symbols()
-    output_subs.output_ass(args.output)
+            processed_subs.append(sublib.Event(text=processed_text, timing=event['timing']))
+    output_subs = sublib.Subs()
+    for timing, events in groupby(processed_subs, itemgetter('timing')):
+        output_subs.append(sublib.Event(text=' '.join(map(itemgetter('text'), events)), timing=timing))
+    output_subs.clean_ass(args.output, 'eng')
