@@ -12,7 +12,7 @@ import ahocorasick
 import sublib
 
 
-VERSION = '0.2.0'
+VERSION = '0.2.1'
 
 start_of_sentence = True
 good_symbols = frozenset(list(chr(i) for i in range(ord('a'), ord('z') + 1)) +
@@ -56,6 +56,7 @@ def process_plain_text(text: str):
     text = brackets.sub('', text)
     text = ''.join(letter for letter in text if letter in good_symbols)
     text = text.replace('...', '…').replace('\n', ' ').replace('--', ' — ')
+    text = re.sub(r'( |^)-\b', lambda m: m.group(1), text)
     text = text.lower()
 
     cap_needed = set()

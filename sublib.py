@@ -487,6 +487,7 @@ class Subs(UserList):
                 event['text'] = event['text'].replace('…?', '?..').replace('…!', '!..').replace('c', 'с')
             elif lang == 'eng':
                 event['text'] = event['text'].replace('?..', '…?').replace('!..', '…!')
+                event['text'] = re.sub(r' ?— ?$', '…', event['text'])
             else:
                 print("Warning: unsupported language {}, no language processing performed.".format(repr(lang)))
 
